@@ -18,7 +18,7 @@
 #*   You should have received a copy of the GNU Library General Public     *
 #*   License along with FreeCAD; if not, write to the Free Software        *
 #*   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
-#*   USA                                                                   *
+#*   USA  )                                                                 *
 #*                                                                         *
 #***************************************************************************/
 
@@ -28,61 +28,65 @@ from pivy import coin
 import Part
 from FreeCAD import Gui
 
-class cameraUpdate:
+class InputEvents:
     def __init__(self, view):
         self.view = view
-        # retrieve camera
-        self.cam = FreeCADGui.ActiveDocument.ActiveView.getCameraNode()
 
     def keyboardPosition( self, info ):
         key = info["Key"]
         down = (info["State"] == "DOWN")
         # key logic
         if key == 'r' and (down):
-          if FreeCAD.ActiveDocument.BaseCube.behavior == "AddCubes":
-             FreeCAD.ActiveDocument.BaseCube.behavior = "RemoveCubes"
+            if FreeCAD.ActiveDocument.VoxelFolder.behavior == "AddCubes":
+                FreeCAD.ActiveDocument.VoxelFolder.behavior = "RemoveCubes"
 
-          else:
-              FreeCAD.ActiveDocument.BaseCube.behavior = "AddCubes"
+            else:
+                FreeCAD.ActiveDocument.VoxelFolder.behavior = "AddCubes"
 
 
     def mouseClick( self, info ):
-      down = (info["State"] == "DOWN")
-      btn = (info["Button"] == "BUTTON1" )
-      if down and (btn):
-        # retrieve mouse position and underlying objects
-        view=Gui.ActiveDocument.ActiveView
-        clicked_obj = view.getObjectInfo(view.getCursorPos())
-        if clicked_obj is not None:
-          # retrieve base object
-          bcube = FreeCAD.ActiveDocument.BaseCube
-          face_number = clicked_obj['Component']
-          if face_number[:4] == "Face":
-            face_number = int( face_number[4:] ) -1
-            sel_face = bcube.Shape.Faces[face_number]
+        down = (info["State"] == "DOWN")
+        btn = (info["Button"] == "BUTTON1" )
+        if down and (btn):
+            # retrieve mouse position and underlying objects
+            view = Gui.ActiveDocument.ActiveView
+            clicked_info = view.getObjectInfo( view.getCursorPos() )
+            if clicked_info is not None:
+                # retrieve base object
+                voxel_folder = FreeCAD.ActiveDocument.VoxelFolder
+                chunk = FreeCAD.ActiveDocument.getObject( clicked_info["Object"] )
+                face_number = clicked_info['Component']
+                if face_number[:4] == "Face":
+                    face_number = int( face_number[4:] ) -1
+                    sel_face = chunk.Shape.Faces[face_number]
 
-          if bcube.behavior == "AddCubes":
-            cube_pos = sel_face.CenterOfMass + sel_face.normalAt(0,0)*0.5 - FreeCAD.Vector(0.5,0.5,0.5)
-            bcube.Proxy.addBlock( cube_pos, "c" )
-            if bcube.XY_MidPlane:
-              cube_pos = FreeCAD.Vector( cube_pos[0], cube_pos[1], -cube_pos[2] )
-              bcube.Proxy.addBlock( cube_pos, "c" )
+                    if voxel_folder.behavior == "AddCubes":
+                        cube_pos = sel_face.CenterOfMass + sel_face.normalAt(0,0)*0.5 - FreeCAD.Vector(0.5,0.5,0.5)
+                        cube_pos = (round(cube_pos[0]),round(cube_pos[1]),round(cube_pos[2]) )
+                        voxel_folder.Proxy.addBlock( cube_pos, "c" )
+                        if voxel_folder.XY_MidPlane:
+                            cube_pos = FreeCAD.Vector( cube_pos[0], cube_pos[1], -cube_pos[2] )
+                            cube_pos = (round(cube_pos[0]),round(cube_pos[1]),round(cube_pos[2]) )
+                            voxel_folder.Proxy.addBlock( cube_pos, "c" )
 
-          else:
-            cube_pos = sel_face.CenterOfMass - sel_face.normalAt(0,0)*0.5 - FreeCAD.Vector(0.5,0.5,0.5)
-            bcube.Proxy.removeBlock( cube_pos )
-            if bcube.XY_MidPlane:
-              cube_pos = FreeCAD.Vector( cube_pos[0], cube_pos[1], -cube_pos[2] )
-              bcube.Proxy.removeBlock( cube_pos )
+                    else:
+                        cube_pos = sel_face.CenterOfMass - sel_face.normalAt(0,0)*0.5 - FreeCAD.Vector(0.5,0.5,0.5)
+                        cube_pos = (round(cube_pos[0]),round(cube_pos[1]),round(cube_pos[2]) )
+                        voxel_folder.Proxy.removeBlock( cube_pos )
+                        if voxel_folder.XY_MidPlane:
+                            cube_pos = FreeCAD.Vector( cube_pos[0], cube_pos[1], -cube_pos[2] )
+                            cube_pos = (round(cube_pos[0]),round(cube_pos[1]),round(cube_pos[2]) )
+                            voxel_folder.Proxy.removeBlock( cube_pos )
 
-          # rebuild geometry
-          bcube.Proxy.rebuildGeometry()
+                    # rebuild geometry
+                    voxel_folder.Proxy.rebuildGeometry()
 
 
 
-v=Gui.activeDocument().activeView()
-o = cameraUpdate(v)
 
-#c = v.addEventCallback("SoLocation2Event",o.mousePosition)
-d = v.addEventCallback("SoKeyboardEvent", o.keyboardPosition)
-e = v.addEventCallback("SoMouseButtonEvent", o.mouseClick )
+def activate():
+    view =Gui.activeDocument().activeView()
+    o = InputEvents(view)
+    #c = v.addEventCallback("SoLocation2Event",o.mousePosition)
+    d = view.addEventCallback("SoKeyboardEvent", o.keyboardPosition)
+    e = view.addEventCallback("SoMouseButtonEvent", o.mouseClick )

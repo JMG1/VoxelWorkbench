@@ -40,13 +40,18 @@ class VoxelWorkbench(Workbench):
         return 'Gui::PythonWorkbench'
 
     def Initialize(self):
-      pass
-
+        pass
+    
     def Activated(self):
-      import EasyVoxel
-      EasyVoxel.startVoxel()
-      import VoxelNav
-      FreeCAD.Console.PrintMessage('Voxel Workbench Loaded\n')
+        import EasyVoxel
+        EasyVoxel.startVoxel()
+        import VoxelNav
+        VoxelNav.activate()
+        FreeCAD.Console.PrintMessage('Voxel Workbench Loaded\n')
+
+    def Deactivated(self):
+        import VoxelNav
+        VoxelNav.deactivate()
 
 
 FreeCADGui.addWorkbench(VoxelWorkbench)

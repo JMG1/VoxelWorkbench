@@ -28,101 +28,219 @@ import FreeCAD
 import Part
 
 
-__dir__ = os.path.dirname(__file__)
+__dir__ = os.path.dirname( __file__ )
 
 
-class createBaseBlock:
-  def __init__( self, obj ):
-    obj.addProperty( "App::PropertyPythonObject", "GeometryDescriptor" ).GeometryDescriptor= [("c",0.0,0.0,0.0)]
-    obj.addProperty( "App::PropertyString", "behavior" ).behavior = "AddCubes"
-    obj.addProperty( "App::PropertyBool", "rebuild" ).rebuild = False
-    obj.addProperty( "App::PropertyBool", "clear_cubes").clear_cubes = False
-    obj.addProperty( "App::PropertyBool", "XY_MidPlane").XY_MidPlane = False
-    obj.Proxy = self
-
-  def execute( self, fp ):
-    if fp.rebuild:
-      if fp.clear_cubes:
-        self.clearCubes()
-        fp.clear_cubes = False
-
-      self.rebuildGeometry()
-      fp.rebuild = False
+def stringV3ToList( vector3str ):
+    """returns a list from the string, created because JSON is
+    feels bad about (...)"""
+    v = vector3str.split(",")
+    x = float( v[0][1:] )
+    y = float( v[1] )
+    z = float( v[2][:-1] )
+    return ( x, y, z )
 
 
+class Chunk:
+    def __init__( self, obj ):
+        #obj.addProperty( "App::PropertyFloatList", "Coordinates" )
+        obj.addProperty( "App::PropertyPythonObject", "Coordinates" ).Coordinates = (0,0,0)
+        obj.Proxy = self
 
-  def rebuildGeometry( self ):
-    geometry = []
-    for geom in FreeCAD.ActiveDocument.BaseCube.GeometryDescriptor:
-      if geom[0] == "c":
-        geometry.append( Part.makeBox(1,1,1, FreeCAD.Vector( geom[1],geom[2],geom[3] ) ) )
+    def execute( self, fp ):
+        pass
 
-    FreeCAD.ActiveDocument.BaseCube.Shape = Part.makeCompound( geometry )
+    def rebuild( self, chunk_obj ):
+        geometry_descriptor = FreeCAD.ActiveDocument.VoxelFolder.GeometryDescriptor
+        chunk_geometry = geometry_descriptor[str(chunk_obj.Coordinates)]
+        geometry = []
+        for voxel_pos, voxel_data in chunk_geometry.iteritems():
+            if voxel_data[0] == "c":
+                voxel_pos = stringV3ToList( voxel_pos )
+                voxel_position = FreeCAD.Vector( voxel_pos[0], voxel_pos[1], voxel_pos[2] )
+                geometry.append( Part.makeBox( 1, 1, 1, voxel_position ) )
 
-
-  def addBlock( self, cube_pos, block_type ):
-    new_block = ( block_type, cube_pos[0],cube_pos[1],cube_pos[2] )
-    FreeCAD.ActiveDocument.BaseCube.GeometryDescriptor.append( new_block )
-
-
-  def removeBlock( self, cube_pos ):
-    fp = FreeCAD.ActiveDocument.BaseCube
-    if len(fp.GeometryDescriptor) > 1:
-      i = 0
-      for geom in fp.GeometryDescriptor:
-        v = FreeCAD.Vector( geom[1], geom[2], geom[3] )
-        if ( v - cube_pos ).Length < 0.01:
-          del fp.GeometryDescriptor[i]
-          i -= 1
-          break
-
-        i += 1
-
-    else:
-      FreeCAD.Console.PrintError("Do not try to estinguish us (the voxel people)!!")
+        chunk_obj.Shape = Part.makeCompound( geometry )
 
 
-  def clearCubes( self ):
-    fp = FreeCAD.ActiveDocument.BaseCube
-    fp.GeometryDescriptor = [("c",0.0,0.0,0.0)]
-    self.rebuildGeometry()
+class ViewProviderChunk:
+    def __init__(self, obj):
+        obj.Proxy = self
+
+    def getDefaultDisplayMode(self):
+        return "Flat Lines"
+
+    def getIcon(self):
+        __dir__ = os.path.dirname(__file__)
+        return __dir__ + '/icons/WorkbenchIcon.svg'
+
+    def paintVoxels( self ):
+        pass
+
+
+
+class VoxelFolder:
+    def __init__( self, obj ):
+        obj.addProperty( "App::PropertyPythonObject", "GeometryDescriptor" ).GeometryDescriptor = {}
+        obj.addProperty( "App::PropertyString", "behavior" ).behavior = "AddCubes"
+        obj.addProperty( "App::PropertyBool", "rebuild" ).rebuild = False
+        obj.addProperty( "App::PropertyBool", "clear").clear = False
+        obj.addProperty( "App::PropertyBool", "XY_MidPlane").XY_MidPlane = False
+        obj.addProperty( "App::PropertyInteger", "NumberOfCubes").NumberOfCubes = 0
+        obj.addProperty( "App::PropertyInteger", "NumberOfChunks").NumberOfChunks = 0
+        obj.Proxy = self
+
+
+    def execute( self, fp ):
+        if fp.rebuild:
+            if fp.clear:
+                self.clear()
+                fp.clear = False
+
+            self.rebuildGeometry()
+            fp.rebuild = False
+
+
+    def chunkPosFromCubePos( self, cube_pos ):
+        """ returns chunk coordinates from cube position:"""
+        chunk_coordinates = ( round(cube_pos[0]/16.0), round(cube_pos[1]/16.0), round(cube_pos[2]/16.0) )
+        return chunk_coordinates
+
+
+    def getChunk( self, chunk_coordinates ):
+        voxel_folder = FreeCAD.ActiveDocument.VoxelFolder
+        va = FreeCAD.Vector( chunk_coordinates[0], chunk_coordinates[1], chunk_coordinates[2] )
+        for chunk in voxel_folder.Group:
+            vb = FreeCAD.Vector( chunk.Coordinates[0], chunk.Coordinates[1], chunk.Coordinates[2] )
+            if ( va - vb ).Length < 0.001:
+                return chunk
+
+
+    def addChunk( self, chunk_coordinates ):
+        """ creates a new chunk object from coordinates"""
+        voxel_folder = FreeCAD.ActiveDocument.VoxelFolder
+        # create chunk object in FreeCAD document
+        chunk_obj = FreeCAD.ActiveDocument.addObject( "Part::FeaturePython", "chunk_" + str(chunk_coordinates) )
+        voxel_folder.addObject( chunk_obj )
+        chunk = Chunk( chunk_obj )
+        chunk_view_provider = ViewProviderChunk( chunk_obj.ViewObject )
+        chunk_obj.Coordinates = chunk_coordinates
+        # log this chunk into the main dictionary containing all chunks (GeometryDescriptor)
+        voxel_folder.GeometryDescriptor[str(chunk_coordinates)] = {}
+        voxel_folder.NumberOfChunks += 1
+        FreeCAD.ActiveDocument.recompute()
+        return chunk_obj
+
+
+    def removeChunk( self, chunk_coordinates ):
+        """Transforms the chunk at the given coordinates into entropy and heat.
+        Thermodynamics ensure that you'll never see him again..."""
+        voxel_folder = FreeCAD.ActiveDocument.VoxelFolder
+        chunk = self.getChunk( chunk_coordinates )
+        FreeCAD.ActiveDocument.removeObject( chunk.Name )
+        del voxel_folder.GeometryDescriptor[str(chunk_coordinates)]
+        voxel_folder.NumberOfChunks -= 1
+        FreeCAD.ActiveDocument.recompute()
+
+
+    def rebuildGeometry( self, chunk_coordinates = "All" ):
+        """ chunk = All or (x,y,z) (coordinets inside chunk)"""
+        voxel_folder = FreeCAD.ActiveDocument.VoxelFolder
+        if chunk_coordinates != "All":
+            # find chunk
+            chunk = self.getChunk( chunk_coordinates )
+            chunk.rebuild(chunk)
+            #chunk.ViewProvider.paintVoxels()
+            FreeCAD.ActiveDocument.recompute()
+
+        else:
+            for chunk in voxel_folder.Group:
+                chunk.Proxy.rebuild(chunk)
+                #chunk.ViewProvider.Proxy.paintVoxels()
+
+
+    def addBlock( self, cube_pos, block_type, color = (0.85,0.6,0.1) ):
+        voxel_folder = FreeCAD.ActiveDocument.VoxelFolder
+        chunk_pos = self.chunkPosFromCubePos( cube_pos )
+        if str(chunk_pos) in voxel_folder.GeometryDescriptor:
+            if str(cube_pos) not in voxel_folder.GeometryDescriptor[str(chunk_pos)]:
+                voxel_folder.GeometryDescriptor[str(chunk_pos)][str(cube_pos)] = [block_type, str(color)]
+                chunk = self.getChunk( chunk_pos )
+                chunk.Proxy.rebuild(chunk)
+                #chunk.ViewObject.Proxy.paintVoxels()
+
+        else:
+            # create new chunk
+            FreeCAD.Console.PrintMessage( "New chunk added\n\n")
+            chunk_coordinates = self.chunkPosFromCubePos( cube_pos )
+            chunk = self.addChunk( chunk_coordinates )
+            voxel_folder.GeometryDescriptor[str(chunk_pos)][str(cube_pos)] = [block_type, str(color)]
+            chunk.Proxy.rebuild(chunk)
+            #chunk.ViewObject.Proxy.paintVoxels()
+
+        voxel_folder.NumberOfCubes += 1
+
+
+    def removeBlock( self, cube_pos ):
+        voxel_folder = FreeCAD.ActiveDocument.VoxelFolder
+        chunk_coordinates = self.chunkPosFromCubePos( cube_pos )
+        chunk = self.getChunk( chunk_coordinates )
+        if len( voxel_folder.GeometryDescriptor ) > 1:
+            del voxel_folder.GeometryDescriptor[str(chunk_coordinates)][str(cube_pos)]
+            chunk.Proxy.rebuild(chunk)
+            #chunk.ViewProvider.paintVoxels()
+
+        elif len( voxel_folder.GeometryDescriptor ) == 1:
+            if len( voxel_folder.GeometryDescriptor[str(chunk_coordinates)] ) == 1:
+                FreeCAD.Console.PrintMessage( "Do not try to extinguish us!! (the voxel-people)\n\n")
+
+            else:
+                del voxel_folder.GeometryDescriptor[str(chunk_coordinates)][str(cube_pos)]
+                chunk.Proxy.rebuild(chunk)
+
+        else:
+            self.removeChunk( chunk_coordinates )
+
+        voxel_folder.NumberOfChunks -= 1
+
+
+    def clear( self ):
+        pass
 
 
 class ViewProviderVx:
-   def __init__(self, obj):
-      ''' Set this object to the proxy object of the actual view provider '''
-      obj.Proxy = self
+    def __init__(self, obj):
+        obj.Proxy = self
 
-   def getDefaultDisplayMode(self):
-      ''' Return the name of the default display mode. It must be defined in getDisplayModes. '''
-      return "Flat Lines"
+    def getDefaultDisplayMode(self):
+        return "Flat Lines"
 
-   def getIcon(self):
-      __dir__ = os.path.dirname(__file__)
-      return __dir__ + '/icons/WorkbenchIcon.svg'
+    def getIcon(self):
+        __dir__ = os.path.dirname(__file__)
+        return __dir__ + '/icons/WorkbenchIcon.svg'
+
+
+def addStartVoxel():
+    voxel_folder_obj = FreeCAD.ActiveDocument.addObject( "App::DocumentObjectGroupPython", "VoxelFolder" )
+    voxel_folder = VoxelFolder( voxel_folder_obj )
+    ViewProviderVx( voxel_folder_obj.ViewObject )
+    FreeCAD.ActiveDocument.recompute()
+    voxel_folder.addBlock((0,0,0), "c")
+    #voxel_folder_obj.rebuild = True
+    FreeCAD.ActiveDocument.recompute()
 
 
 def startVoxel():
-  if FreeCAD.ActiveDocument:
-    try:
-      FreeCAD.ActiveDocument.BaseCube
+    if FreeCAD.ActiveDocument:
+        try:
+            FreeCAD.ActiveDocument.voxel_folder
 
-    except:
-      bcube_obj = FreeCAD.ActiveDocument.addObject( "Part::FeaturePython", "BaseCube" )
-      bcube = createBaseBlock( bcube_obj )
-      ViewProviderVx( bcube_obj.ViewObject )
-      bcube_obj.ViewObject.ShapeColor = (0.80,0.39,0.39)
-      bcube_obj.rebuild = True
-      FreeCAD.ActiveDocument.recompute()
+        except:
+            addStartVoxel()
 
-  else:
-    FreeCAD.newDocument("Voxelizer")
-    FreeCAD.setActiveDocument("Voxelizer")
-    FreeCAD.ActiveDocument= FreeCAD.getDocument("Voxelizer")
-    FreeCAD.Gui.ActiveDocument=FreeCAD.Gui.getDocument("Voxelizer")
-    bcube_obj = FreeCAD.ActiveDocument.addObject( "Part::FeaturePython", "BaseCube" )
-    bcube = createBaseBlock( bcube_obj )
-    ViewProviderVx( bcube_obj.ViewObject )
-    bcube_obj.ViewObject.ShapeColor = (0.80,0.39,0.39)
-    bcube_obj.rebuild = True
-    FreeCAD.ActiveDocument.recompute()
+    else:
+        FreeCAD.newDocument("Voxelizer")
+        FreeCAD.setActiveDocument("Voxelizer")
+        FreeCAD.ActiveDocument= FreeCAD.getDocument("Voxelizer")
+        FreeCAD.Gui.ActiveDocument=FreeCAD.Gui.getDocument("Voxelizer")
+        addStartVoxel()
