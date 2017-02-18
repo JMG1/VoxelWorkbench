@@ -102,6 +102,7 @@ class ViewProviderVx:
       return __dir__ + '/icons/WorkbenchIcon.svg'
 
 
+
 def startVoxel():
   if FreeCAD.ActiveDocument:
     try:
@@ -126,3 +127,27 @@ def startVoxel():
     bcube_obj.ViewObject.ShapeColor = (0.80,0.39,0.39)
     bcube_obj.rebuild = True
     FreeCAD.ActiveDocument.recompute()
+
+
+# tools
+class ToggleXYMidplane:
+    def GetResources(self):
+        return {'Pixmap': __dir__ + '/icons/midplaneIcon.svg',
+                'MenuText': 'Toggle XY Mirroring',
+                'ToolTip': 'Mirrors cubes construction/destruction along XY pane'}
+
+    def IsActive(self):
+      return True
+
+    def Activated(self):
+        try:
+          bc = FreeCAD.ActiveDocument.getObject( "BaseCube" )
+          bc.XY_MidPlane = not( bc.XY_MidPlane )
+
+        except:
+          FreeCAD.Console.PrintError("No base cube object??")
+
+
+
+if FreeCAD.GuiUp:
+    FreeCAD.Gui.addCommand('ToggleXYMidplane', ToggleXYMidplane())

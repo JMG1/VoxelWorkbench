@@ -80,9 +80,14 @@ class cameraUpdate:
 
 
 
-v=Gui.activeDocument().activeView()
-o = cameraUpdate(v)
+class VoxelNav:
+  def __init__( self ):
+    self.view = Gui.activeDocument().activeView()
+    self.cameraUpdate = cameraUpdate(self.view)
+    self.keyEvent = self.view.addEventCallback("SoKeyboardEvent", self.cameraUpdate.keyboardPosition)
+    self.mouseEvent = self.view.addEventCallback("SoMouseButtonEvent", self.cameraUpdate.mouseClick )
 
-#c = v.addEventCallback("SoLocation2Event",o.mousePosition)
-d = v.addEventCallback("SoKeyboardEvent", o.keyboardPosition)
-e = v.addEventCallback("SoMouseButtonEvent", o.mouseClick )
+  def removeNav( self ):
+    self.view.removeEventCallback( "SoKeyboardEvent", self.keyEvent )
+    self.view.removeEventCallback( "SoMouseButtonEvent", self.mouseEvent )
+
