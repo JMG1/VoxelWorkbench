@@ -5,6 +5,8 @@ Voxel Workbench for FreeCAD
 
 [Demo video](https://www.youtube.com/watch?v=nE0LYK__R5U)
 
+[Voxel to CAD object](https://youtu.be/DQ7plBOnOyg)
+
 [FreeCAD forum thread](https://forum.freecadweb.org/viewtopic.php?f=24&t=20013&hilit=voxel)
 
 ### Installation
