@@ -48,8 +48,12 @@ class VoxelWorkbench(Workbench):
       import VoxelNav
       self.vnav = VoxelNav.VoxelNav()
       FreeCAD.ActiveDocument.recompute()
-      self.appendToolbar("VoxelTools",  [ 'ToggleXYMidplane','VoxelToObject' ] )
-      self.appendMenu( "VoxelWorkbench", [ 'ToggleXYMidplane', 'VoxelToObject' ] )
+      self.appendToolbar("VoxelTools",  [ 'ToggleXYMidplane',
+                                          'VoxelToObject',
+                                          'ObjectToVoxel' ] )
+      self.appendMenu( "VoxelWorkbench", [ 'ToggleXYMidplane',
+                                           'VoxelToObject',
+                                           'ObjectToVoxel' ] )
       FreeCAD.Console.PrintMessage('Voxel Workbench Loaded\n')
 
 
