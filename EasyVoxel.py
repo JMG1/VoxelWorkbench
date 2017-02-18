@@ -61,8 +61,14 @@ class createBaseBlock:
 
 
   def addBlock( self, cube_pos, block_type ):
+    bcube = FreeCAD.ActiveDocument.BaseCube
+    for geom in bcube.GeometryDescriptor:
+      v = FreeCAD.Vector( geom[1], geom[2], geom[3] )
+      if ( v - cube_pos ).Length < 0.01:
+        return
+
     new_block = ( block_type, cube_pos[0],cube_pos[1],cube_pos[2] )
-    FreeCAD.ActiveDocument.BaseCube.GeometryDescriptor.append( new_block )
+    bcube.GeometryDescriptor.append( new_block )
 
 
   def removeBlock( self, cube_pos ):
@@ -79,7 +85,7 @@ class createBaseBlock:
         i += 1
 
     else:
-      FreeCAD.Console.PrintError("Do not try to estinguish us (the voxel people)!!")
+      FreeCAD.Console.PrintError("Do not try to estinguish us (the voxel people)!!\n\n")
 
 
   def clearCubes( self ):
@@ -130,6 +136,32 @@ def startVoxel():
 
 
 # tools
+class VoxelToObject:
+    def GetResources(self):
+        return {'Pixmap': __dir__ + '/icons/ToRealPartIcon.svg',
+                'MenuText': 'Voxel to FreeCAD Object',
+                'ToolTip': 'Creates a FreeCAD geometry object from voxels'}
+
+    def IsActive(self):
+      return True
+
+    def Activated(self):
+      bcube = FreeCAD.ActiveDocument.getObject("BaseCube")
+      geometry = []
+      for geom in bcube.GeometryDescriptor:
+        if geom[0] == "c":
+          geometry.append( Part.makeBox(1,1,1, FreeCAD.Vector( geom[1],geom[2],geom[3] ) ) )
+
+      obj = FreeCAD.ActiveDocument.addObject("Part::Feature", bcube.Label + "_obj" )
+      obj.Shape = geometry[0]
+      for i in xrange( len( geometry ) - 1 ):
+        obj.Shape = obj.Shape.fuse( geometry[i+1] )
+
+      obj.Shape = obj.Shape.removeSplitter()
+      bcube.ViewObject.Visibility = False
+
+
+
 class ToggleXYMidplane:
     def GetResources(self):
         return {'Pixmap': __dir__ + '/icons/midplaneIcon.svg',
@@ -151,3 +183,4 @@ class ToggleXYMidplane:
 
 if FreeCAD.GuiUp:
     FreeCAD.Gui.addCommand('ToggleXYMidplane', ToggleXYMidplane())
+    FreeCAD.Gui.addCommand('VoxelToObject', VoxelToObject())

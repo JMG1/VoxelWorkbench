@@ -31,7 +31,5 @@ That's all, the next time you launch FreeCAD the workbench should be incorporate
 
 
 ### TODO:
-* Stop voxel nav when changing workbench
 * Some screen freezing when playing with big amounts of cubes
-* Converto to a normal FreeCAD object or STL file
 * Place other objects (wedges, arcs...)
